@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G-CU8E CHAT - 로그인</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            color: #1877f2;
+            margin-bottom: 30px;
+        }
+        .form-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 300px;
+        }
+        .form-container input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border: 1px solid #dddfe2;
+            border-radius: 20px;
+            box-sizing: border-box;
+        }
+        .form-container button {
+            width: 100%;
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .form-container button:hover {
+            background-color: #166fe5;
+        }
+        .signup-text {
+            text-align: center;
+            color: #65676b;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        #signup-form {
+            display: none;
+        }
+        .check-duplicate {
+            background-color: #e4e6eb;
+            color: #050505;
+            border: none;
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+        }
+        .check-duplicate:hover {
+            background-color: #d8dadf;
+        }
+    </style>
+</head>
+<body>
+    <h1>G-CU8E CHAT</h1>
+    <div class="form-container" id="login-form">
+        <input type="text" id="username" placeholder="닉네임">
+        <input type="password" id="password" placeholder="비밀번호">
+        <button onclick="login()">로그인</button>
+        <p class="signup-text" onclick="showSignupForm()">회원가입</p>
+    </div>
+
+    <div class="form-container" id="signup-form" style="display:none;">
+        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <input type="text" id="signup-username" placeholder="닉네임" style="margin-bottom: 0;">
+            <button class="check-duplicate" onclick="checkDuplicate()">중복확인</button>
+        </div>
+        <input type="password" id="signup-password" placeholder="비밀번호">
+        <input type="email" id="signup-email" placeholder="이메일">
+        <button onclick="signup()">회원가입</button>
+        <p class="signup-text" onclick="showLoginForm()">로그인으로 돌아가기</p>
+    </div>
+
+    <script>
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            // 여기에 로그인 로직을 구현하세요
+            console.log('로그인 시도:', username, password);
+        }
+
+        function showSignupForm() {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('signup-form').style.display = 'block';
+        }
+
+        function showLoginForm() {
+            document.getElementById('signup-form').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+        }
+
+        function checkDuplicate() {
+            const username = document.getElementById('signup-username').value;
+            // 여기에 중복 확인 로직을 구현하세요
+            console.log('중복 확인:', username);
+        }
+
+        function signup() {
+            const username = document.getElementById('signup-username').value;
+            const password = document.getElementById('signup-password').value;
+            const email = document.getElementById('signup-email').value;
+            // 여기에 회원가입 로직을 구현하세요
+            console.log('회원가입 시도:', username, password, email);
+        }
+    </script>
+</body>
+</html>
