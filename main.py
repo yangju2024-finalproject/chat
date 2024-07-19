@@ -1,14 +1,19 @@
 import json
 import os
 import time
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 from kafka_producer import KafkaMessageProducer
 from redis_handler import RedisHandler
 from typing import List
 from kafka.errors import NoBrokersAvailable
 
 app = FastAPI()
+
+# 세션 미들웨어 추가
+app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
 
 # WebSocket 연결을 관리하는 클래스
 class ConnectionManager:
@@ -45,6 +50,18 @@ kafka_producer = connect_kafka()
 # Redis 연결 설정
 redis_host = os.getenv('REDIS_HOST', 'redis')
 redis_handler = RedisHandler(host=redis_host)
+
+# 로그인 상태 확인 미들웨어
+@app.middleware("http")
+async def check_login_status(request: Request, call_next):
+    if request.url.path == "/":
+        if "session" not in request.scope:
+            return RedirectResponse(url="/signin-signup.html")
+        session = request.session
+        if not session.get("user"):
+            return RedirectResponse(url="/signin-signup.html")
+    response = await call_next(request)
+    return response
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -83,7 +100,25 @@ async def websocket_endpoint(websocket: WebSocket):
             }
             await manager.broadcast(json.dumps(message))
 
-# 정적 파일 서빙 (index.html)
+# 로그인 라우트 (예시)
+@app.post("/login")
+async def login(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    password = data.get("password")
+    # 여기에 실제 로그인 로직을 구현하세요
+    if username and password:  # 임시 로직, 실제로는 데이터베이스 확인 등이 필요
+        request.session["user"] = username
+        return {"success": True}
+    return {"success": False}
+
+# 로그아웃 라우트 (예시)
+@app.post("/logout")
+async def logout(request: Request):
+    request.session.pop("user", None)
+    return {"success": True}
+
+# 정적 파일 서빙 (index.html, signin-signup.html)
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":

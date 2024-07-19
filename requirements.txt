@@ -4,3 +4,5 @@ websockets==10.0
 kafka-python==2.0.2
 redis==3.5.3
 aiofiles==0.7.0
+itsdangerous
+starlette
