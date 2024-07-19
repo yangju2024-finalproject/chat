@@ -136,6 +136,7 @@
         const commentCount = document.getElementById('comment-count').querySelector('span');
         const usernameSpan = document.getElementById('username');
         let ws = null;
+        let token = localStorage.getItem('token');
 
         function connectWebSocket() {
             ws = new WebSocket(`ws://${window.location.host}/ws`);
@@ -186,7 +187,8 @@
             if (messageInput.value) {
                 ws.send(JSON.stringify({
                     type: 'message',
-                    content: messageInput.value
+                    content: messageInput.value,
+                    token: token
                 }));
                 messageInput.value = '';
             }
@@ -200,26 +202,39 @@
         };
 
         function logout() {
-            fetch('/logout', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        window.location.href = '/signin-signup.html';
-                    }
-                });
+            fetch('/logout', { 
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                localStorage.removeItem('token');
+                window.location.href = '/static/signin-signup.html';
+            });
         }
 
         // 페이지 로드 시 사용자 정보 가져오기
-        fetch('/user-info')
-            .then(response => response.json())
-            .then(data => {
-                if (data.username) {
-                    usernameSpan.textContent = data.username;
-                    connectWebSocket();
-                } else {
-                    window.location.href = '/signin-signup.html';
-                }
-            });
+        fetch('/user-info', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Not authenticated');
+            }
+            return response.json();
+        })
+        .then(data => {
+            usernameSpan.textContent = data.username;
+            connectWebSocket();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            window.location.href = '/static/signin-signup.html';
+        });
     </script>
 </body>
 </html>

@@ -102,14 +102,19 @@
         function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+            
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('password', password);
+
             fetch('/login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: formData
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
+                if (data.access_token) {
+                    localStorage.setItem('token', data.access_token);
                     window.location.href = '/';
                 } else {
                     alert('로그인 실패');
@@ -136,7 +141,12 @@
                 },
                 body: JSON.stringify({ username: username }),
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.isDuplicate) {
                     alert('이미 사용 중인 닉네임입니다.');
@@ -152,20 +162,20 @@
 
         function signup() {
             const username = document.getElementById('signup-username').value;
-            const password = document.getElementById('signup-password').value;
             const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
             fetch('/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password, email })
+                body: JSON.stringify({ username, email, password })
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
+                if (data.email) {
                     alert('회원가입 성공');
-                    window.location.href = '/';
+                    // 로그인 폼으로 이동하거나 자동 로그인 처리
                 } else {
-                    alert('회원가입 실패');
+                    alert('회원가입 실패: ' + (data.detail || '알 수 없는 오류'));
                 }
             });
         }

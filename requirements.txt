@@ -3,7 +3,8 @@ uvicorn
 websockets
 kafka-python
 redis
-starlette
-itsdangerous
-pymongo
-bcrypt
+motor
+passlib
+python-jose[cryptography]
+pydantic[email]
+python-multipart
