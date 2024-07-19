@@ -98,15 +98,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.chat_history: List[str] = []
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        # 기존 채팅 기록을 새로 연결된 클라이언트에게 전송
+        for message in self.chat_history:
+            await websocket.send_text(message)
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
 
     async def broadcast(self, message: str):
+        self.chat_history.append(message)
         for connection in self.active_connections:
             await connection.send_text(message)
 
