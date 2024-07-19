@@ -1,21 +1,43 @@
 import json
 import os
-import time
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from kafka_producer import KafkaMessageProducer
 from redis_handler import RedisHandler
 from typing import List
-from kafka.errors import NoBrokersAvailable
+from pymongo import MongoClient
+from bson import ObjectId
+import bcrypt
 
 app = FastAPI()
 
-# 세션 미들웨어 추가
-app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
+# MongoDB 연결
+mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017/chatapp")
+mongo_client = MongoClient(mongo_uri)
+db = mongo_client.get_database()
+users_collection = db["users"]
 
-# WebSocket 연결을 관리하는 클래스
+# Kafka 연결
+kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
+kafka_producer = KafkaMessageProducer([kafka_bootstrap_servers])
+
+# Redis 연결
+redis_host = os.getenv('REDIS_HOST', 'redis')
+redis_handler = RedisHandler(host=redis_host)
+
+class WebSocketSessionMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if "websocket" in request.scope["type"]:
+            request.scope["session"] = request.scope.get("session", {})
+        return await call_next(request)
+
+app.add_middleware(SessionMiddleware, secret_key="your-secret-key")
+app.add_middleware(WebSocketSessionMiddleware)
+
+# WebSocket 연결 관리
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -33,90 +55,103 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Kafka 연결 설정
-kafka_bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
+# 로그인 상태 확인
+def get_current_user(session: dict):
+    user_id = session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
 
-def connect_kafka(retries=5, delay=5):
-    for _ in range(retries):
-        try:
-            return KafkaMessageProducer(bootstrap_servers=[kafka_bootstrap_servers])
-        except NoBrokersAvailable:
-            print(f"Kafka connection failed. Retrying in {delay} seconds...")
-            time.sleep(delay)
-    raise Exception("Failed to connect to Kafka after multiple attempts")
+@app.get("/user-info")
+async def user_info(request: Request):
+    user = get_current_user(request.session)
+    return {"username": user["username"]}
 
-kafka_producer = connect_kafka()
+@app.post("/signup")
+async def signup(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    password = data.get("password")
+    email = data.get("email")
 
-# Redis 연결 설정
-redis_host = os.getenv('REDIS_HOST', 'redis')
-redis_handler = RedisHandler(host=redis_host)
+    if not username or not password or not email:
+        return JSONResponse(status_code=400, content={"success": False, "message": "All fields are required"})
 
-# 로그인 상태 확인 미들웨어
-@app.middleware("http")
-async def check_login_status(request: Request, call_next):
-    if request.url.path == "/":
-        if "session" not in request.scope:
-            return RedirectResponse(url="/signin-signup.html")
-        session = request.session
-        if not session.get("user"):
-            return RedirectResponse(url="/signin-signup.html")
-    response = await call_next(request)
-    return response
+    existing_user = users_collection.find_one({"username": username})
+    if existing_user:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Username already exists"})
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    client_id = None
-    try:
-        while True:
-            data = await websocket.receive_text()
-            if not client_id:
-                client_info = json.loads(data)
-                client_id = client_info.get('client_id')
-                continue
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    user_id = users_collection.insert_one({
+        "username": username,
+        "password": hashed_password,
+        "email": email
+    }).inserted_id
 
-            # 메시지 처리
-            message = {
-                "type": "message",
-                "author": client_id,
-                "content": data
-            }
-            await manager.broadcast(json.dumps(message))
-            
-            # Kafka로 메시지 전송
-            kafka_producer.send_message(json.dumps(message))
-            
-            # Redis에 메시지 카운트 증가 및 브로드캐스트
-            count = redis_handler.increment_message_count()
-            await manager.broadcast(json.dumps({"type": "count", "count": count}))
+    request.session["user_id"] = str(user_id)
+    return JSONResponse(content={"success": True})
 
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        if client_id:
-            message = {
-                "type": "message",
-                "author": "System",
-                "content": f"{client_id} has left the chat"
-            }
-            await manager.broadcast(json.dumps(message))
-
-# 로그인 라우트 (예시)
 @app.post("/login")
 async def login(request: Request):
     data = await request.json()
     username = data.get("username")
     password = data.get("password")
-    # 여기에 실제 로그인 로직을 구현하세요
-    if username and password:  # 임시 로직, 실제로는 데이터베이스 확인 등이 필요
-        request.session["user"] = username
-        return {"success": True}
-    return {"success": False}
 
-# 로그아웃 라우트 (예시)
+    user = users_collection.find_one({"username": username})
+    if user and bcrypt.checkpw(password.encode('utf-8'), user["password"]):
+        request.session["user_id"] = str(user["_id"])
+        return JSONResponse(content={"success": True})
+    return JSONResponse(status_code=401, content={"success": False, "message": "Invalid credentials"})
+
+@app.post("/check-duplicate")
+async def check_duplicate(request: Request):
+    data = await request.json()
+    username = data.get("username")
+
+    if not username:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Username is required"})
+
+    existing_user = users_collection.find_one({"username": username})
+    
+    return JSONResponse(content={"isDuplicate": existing_user is not None})
+    
 @app.post("/logout")
 async def logout(request: Request):
-    request.session.pop("user", None)
-    return {"success": True}
+    request.session.pop("user_id", None)
+    return JSONResponse(content={"success": True})
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        session = websocket.scope.get("session", {})
+        user = get_current_user(session)
+        while True:
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            message = {
+                "type": "message",
+                "author": user["username"],
+                "content": message_data["content"]
+            }
+            await manager.broadcast(json.dumps(message))
+            kafka_producer.send_message("chat_messages", message)
+            count = redis_handler.increment_message_count()
+            await manager.broadcast(json.dumps({"type": "count", "count": count}))
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        message = {
+            "type": "message",
+            "author": "System",
+            "content": f"{user['username']} has left the chat"
+        }
+        await manager.broadcast(json.dumps(message))
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        manager.disconnect(websocket)
 
 # 정적 파일 서빙 (index.html, signin-signup.html)
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

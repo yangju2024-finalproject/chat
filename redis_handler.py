@@ -8,4 +8,8 @@ class RedisHandler:
         return self.redis_client.incr('message_count')
 
     def get_message_count(self):
-        return int(self.redis_client.get('message_count') or 0)
+        count = self.redis_client.get('message_count')
+        return int(count) if count else 0
+
+    def reset_message_count(self):
+        self.redis_client.set('message_count', 0)

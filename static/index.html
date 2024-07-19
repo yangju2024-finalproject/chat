@@ -17,7 +17,33 @@
             text-align: center;
             color: #1877f2;
         }
-        /* 채팅창 */
+        #welcome-message {
+            background-color: white;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #username {
+            font-weight: bold;
+            color: #1877f2;
+        }
+        #logout {
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #logout:hover {
+            background-color: #166fe5;
+        }
         #chat {
             height: 400px;
             overflow-y: scroll;
@@ -63,7 +89,6 @@
             display: flex;
             gap: 10px;
         }
-        /* 메시지 입력창 */
         #message {
             width: 80%;
             padding: 10px;
@@ -71,7 +96,6 @@
             border-radius: 20px;
             font-size: 16px;
         }
-        /* 전송 버튼 */
         #send {
             background-color: #1877f2;
             color: white;
@@ -85,7 +109,6 @@
         #send:hover {
             background-color: #166fe5;
         }
-        /* 댓글 수 표시 */
         #comment-count {
             font-size: 16px;
             color: #555;
@@ -96,35 +119,36 @@
 </head>
 <body>
     <h1>G-CU8E CHAT</h1>
-    <!-- 댓글 수를 표시할 요소 -->
-    <div>댓글 수: <span id="comment-count">0</span></div>
+    <div id="welcome-message">
+        환영합니다, <span id="username"></span>님!
+        <button id="logout" onclick="logout()">로그아웃</button>
+    </div>
+    <div id="comment-count">댓글 수: <span>0</span></div>
     <div id="chat"></div>
-    <input type="text" id="message" placeholder="메시지를 입력하세요...">
-    <button id="send" onclick="sendMessage()">전송</button>
+    <div id="message-form">
+        <input type="text" id="message" placeholder="메시지를 입력하세요...">
+        <button id="send" onclick="sendMessage()">전송</button>
+    </div>
     <script>
         const chat = document.getElementById('chat');
         const messageInput = document.getElementById('message');
         const sendButton = document.getElementById('send');
-        const commentCount = document.getElementById('comment-count');
-        let clientId = null;  // 클라이언트 ID 저장
-        let ws = null;  // WebSocket 연결
+        const commentCount = document.getElementById('comment-count').querySelector('span');
+        const usernameSpan = document.getElementById('username');
+        let ws = null;
 
         function connectWebSocket() {
             ws = new WebSocket(`ws://${window.location.host}/ws`);
             
             ws.onopen = function() {
                 console.log("WebSocket 연결됨");
-                // 서버에 클라이언트 ID 전송
-                ws.send(JSON.stringify({type: 'client_id', client_id: clientId}));
             };
             
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 if (data.type === "count") {
-                    // 댓글 수 업데이트
                     commentCount.textContent = data.count;
                 } else if (data.type === "message") {
-                    // 일반 메시지 처리
                     const messageWrapper = document.createElement('div');
                     const author = document.createElement('div');
                     const message = document.createElement('div');
@@ -135,8 +159,7 @@
                     message.textContent = data.content;
                     message.className = 'message';
 
-                    // 작성자 확인
-                    if (data.author === clientId) {
+                    if (data.author === usernameSpan.textContent) {
                         message.classList.add('self');
                         author.classList.add('self');
                     } else {
@@ -161,7 +184,10 @@
 
         function sendMessage() {
             if (messageInput.value) {
-                ws.send(messageInput.value);
+                ws.send(JSON.stringify({
+                    type: 'message',
+                    content: messageInput.value
+                }));
                 messageInput.value = '';
             }
         }
@@ -173,8 +199,27 @@
             }
         };
 
-        // 페이지 로드 시 WebSocket 연결
-        connectWebSocket();
+        function logout() {
+            fetch('/logout', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/signin-signup.html';
+                    }
+                });
+        }
+
+        // 페이지 로드 시 사용자 정보 가져오기
+        fetch('/user-info')
+            .then(response => response.json())
+            .then(data => {
+                if (data.username) {
+                    usernameSpan.textContent = data.username;
+                    connectWebSocket();
+                } else {
+                    window.location.href = '/signin-signup.html';
+                }
+            });
     </script>
 </body>
 </html>

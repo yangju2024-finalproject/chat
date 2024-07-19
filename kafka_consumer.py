@@ -1,11 +1,11 @@
 from kafka import KafkaConsumer
 import json
 
-class KafkaConsumer:
-    def __init__(self):
+class KafkaMessageConsumer:
+    def __init__(self, bootstrap_servers, topic):
         self.consumer = KafkaConsumer(
-            'chat_messages',
-            bootstrap_servers=['localhost:9092'],
+            topic,
+            bootstrap_servers=bootstrap_servers,
             auto_offset_reset='earliest',
             enable_auto_commit=True,
             group_id='chat-group',
@@ -14,8 +14,9 @@ class KafkaConsumer:
 
     def consume_messages(self):
         for message in self.consumer:
-            print(f"Received: {message.value}")
+            yield message.value
 
 if __name__ == "__main__":
-    consumer = KafkaConsumer()
-    consumer.consume_messages()
+    consumer = KafkaMessageConsumer(['kafka:29092'], 'chat_messages')
+    for message in consumer.consume_messages():
+        print(f"Received: {message}")

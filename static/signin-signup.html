@@ -102,8 +102,19 @@
         function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            // 여기에 로그인 로직을 구현하세요
-            console.log('로그인 시도:', username, password);
+            fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    alert('로그인 실패');
+                }
+            });
         }
 
         function showSignupForm() {
@@ -118,16 +129,45 @@
 
         function checkDuplicate() {
             const username = document.getElementById('signup-username').value;
-            // 여기에 중복 확인 로직을 구현하세요
-            console.log('중복 확인:', username);
+            fetch('/check-duplicate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.isDuplicate) {
+                    alert('이미 사용 중인 닉네임입니다.');
+                } else {
+                    alert('사용 가능한 닉네임입니다.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('중복 확인 중 오류가 발생했습니다.');
+            });
         }
 
         function signup() {
             const username = document.getElementById('signup-username').value;
             const password = document.getElementById('signup-password').value;
             const email = document.getElementById('signup-email').value;
-            // 여기에 회원가입 로직을 구현하세요
-            console.log('회원가입 시도:', username, password, email);
+            fetch('/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, email })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('회원가입 성공');
+                    window.location.href = '/';
+                } else {
+                    alert('회원가입 실패');
+                }
+            });
         }
     </script>
 </body>

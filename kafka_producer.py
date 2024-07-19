@@ -1,13 +1,13 @@
-from kafka import KafkaProducer as KafkaProducerLib
+from kafka import KafkaProducer
 import json
 
 class KafkaMessageProducer:
     def __init__(self, bootstrap_servers):
-        self.producer = KafkaProducerLib(
+        self.producer = KafkaProducer(
             bootstrap_servers=bootstrap_servers,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
 
-    def send_message(self, message):
-        self.producer.send('chat_messages', message)
+    def send_message(self, topic, message):
+        self.producer.send(topic, message)
         self.producer.flush()
